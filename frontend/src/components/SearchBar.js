@@ -1,8 +1,9 @@
+// components/SearchBar.js
 "use client";
 
 export default function SearchBar({ onSearch }) {
   return (
-    <div className="relative mb-6">
+    <div className="relative mb-6 w-1/2">
       <input
         type="text"
         placeholder="Search for products..."

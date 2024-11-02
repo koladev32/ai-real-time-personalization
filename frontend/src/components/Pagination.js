@@ -1,3 +1,4 @@
+// components/Pagination.js
 "use client";
 
 export default function Pagination({ currentPage, totalPages, onPageChange }) {
@@ -10,6 +11,9 @@ export default function Pagination({ currentPage, totalPages, onPageChange }) {
       >
         Previous
       </button>
+      <span className="px-4 py-2 bg-gray-900 text-white">
+        {currentPage} / {totalPages}
+      </span>
       <button
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage === totalPages}

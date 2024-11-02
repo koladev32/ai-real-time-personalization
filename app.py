@@ -1,7 +1,9 @@
 from flask import Flask, request, jsonify
 import sqlite3
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app, resources={r"/api/*": {"origins": "http://localhost:3001"}})
 
 # Utility function to execute queries
 def query_db(query, args=(), one=False):
@@ -19,26 +21,55 @@ def get_categories():
     categories = query_db("SELECT id, name, slug FROM categories")
     return jsonify([dict(row) for row in categories])
 
-# Endpoint to list all products with pagination, sorting, and field selection
+# Endpoint to list all products with pagination, sorting, field selection, and search functionality
 @app.route('/api/products', methods=['GET'])
 def get_products():
-    # Query parameters for pagination, sorting, and field selection
+    # Query parameters for pagination, sorting, field selection, category, and search
     limit = int(request.args.get('limit', 10))  # Default limit is 10
     skip = int(request.args.get('skip', 0))  # Default skip is 0
-    sort_by = request.args.get('sortBy', 'id')  # Default sort by id
-    order = request.args.get('order', 'asc').lower()  # Default order is ascending
+    sort_by = request.args.get('sortBy', 'id')  # Default sort by 'id'
+    order = request.args.get('order', 'asc').lower()  # Default order is 'asc'
     select_fields = request.args.get('select', '*')  # Fields to select
+    category_id = request.args.get('category', None)
+    search_query = request.args.get('search', None)  # Search keyword
 
     # Validate order
     if order not in ['asc', 'desc']:
         return jsonify({"error": "Invalid order parameter. Use 'asc' or 'desc'."}), 400
 
-    # Build the query
-    query = f"SELECT {select_fields} FROM products ORDER BY {sort_by} {order.upper()} LIMIT ? OFFSET ?"
-    products = query_db(query, (limit, skip))
+    # Base query
+    base_query = f"SELECT {select_fields} FROM products"
+    count_query = "SELECT COUNT(*) as count FROM products"
 
-    # Get total count of products for pagination info
-    total_count = query_db("SELECT COUNT(*) as count FROM products", one=True)['count']
+    # Building conditions
+    conditions = []
+    params = []
+
+    # Add search condition
+    if search_query:
+        conditions.append("(title LIKE ? OR description LIKE ?)")
+        params.extend([f"%{search_query}%", f"%{search_query}%"])
+
+    # Add category filter condition
+    if category_id:
+        conditions.append("category_id = ?")
+        params.append(category_id)
+
+    # Combine conditions into WHERE clause if there are any
+    if conditions:
+        where_clause = " WHERE " + " AND ".join(conditions)
+        base_query += where_clause
+        count_query += where_clause
+
+    # Add sorting and pagination to the main query
+    base_query += f" ORDER BY {sort_by} {order.upper()} LIMIT ? OFFSET ?"
+    params.extend([limit, skip])
+
+    # Execute the main query to fetch products
+    products = query_db(base_query, tuple(params))
+
+    # Execute the count query to get the total count of products
+    total_count = query_db(count_query, tuple(params[:len(params)-2]), one=True)['count']
 
     # Format the response
     response = {

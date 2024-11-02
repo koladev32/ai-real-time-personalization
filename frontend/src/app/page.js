@@ -1,61 +1,68 @@
+// app/page.js
 "use client";
 import { useState, useEffect } from "react";
 import ProductCard from "../components/ProductCard";
 import SearchBar from "../components/SearchBar";
 import SortMenu from "../components/SortMenu";
 import Pagination from "../components/Pagination";
-
-const mockProducts = Array.from({ length: 100 }, (_, i) => ({
-  id: i + 1,
-  name: `Product ${i + 1}`,
-  price: (Math.random() * 100).toFixed(2),
-  image: "https://via.placeholder.com/150",
-}));
+import Sidebar from "../components/Sidebar";
+import { fetchFromAPI } from "../utils/api";
 
 export default function Home() {
-  const [products, setProducts] = useState(mockProducts);
+  const [products, setProducts] = useState([]);
+  const [totalProducts, setTotalProducts] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
-  const [sortOption, setSortOption] = useState("Relevance");
+  const [sortOption, setSortOption] = useState({
+    field: "",
+    order: "",
+  });
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedCategory, setSelectedCategory] = useState("");
   const productsPerPage = 12;
 
   useEffect(() => {
-    const filteredProducts = mockProducts.filter((product) =>
-      product.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    async function fetchProducts() {
+      try {
+        const params = {
+          limit: productsPerPage,
+          skip: (currentPage - 1) * productsPerPage,
+          sortBy: sortOption.field || "id",
+          order: sortOption.order || "asc",
+        };
+        if (searchTerm) params.search = searchTerm;
+        if (selectedCategory) params.category = selectedCategory;
 
-    if (sortOption === "Price: Low to high") {
-      filteredProducts.sort((a, b) => a.price - b.price);
-    } else if (sortOption === "Price: High to low") {
-      filteredProducts.sort((a, b) => b.price - a.price);
+        const data = await fetchFromAPI("/products", params);
+        setProducts(data.products);
+        setTotalProducts(data.total);
+      } catch (error) {
+        console.error("Failed to fetch products:", error);
+      }
     }
-
-    const indexOfLastProduct = currentPage * productsPerPage;
-    const indexOfFirstProduct = indexOfLastProduct - productsPerPage;
-    const currentProducts = filteredProducts.slice(
-      indexOfFirstProduct,
-      indexOfLastProduct
-    );
-
-    setProducts(currentProducts);
-  }, [searchTerm, sortOption, currentPage]);
+    fetchProducts();
+  }, [searchTerm, sortOption, currentPage, selectedCategory]);
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
-        <SearchBar onSearch={setSearchTerm} />
-        <SortMenu onSort={setSortOption} />
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-        {products.map((product) => (
-          <ProductCard key={product.id} product={product} />
-        ))}
-      </div>
-      <Pagination
-        currentPage={currentPage}
-        totalPages={Math.ceil(mockProducts.length / productsPerPage)}
-        onPageChange={setCurrentPage}
-      />
+    <div className="flex">
+      <Sidebar onCategorySelect={setSelectedCategory} />
+      <main className="p-6 flex flex-row space-x-4">
+        <div className="w-10/12">
+          <div className="flex justify-between items-center mb-6 w-full">
+            <SearchBar onSearch={setSearchTerm} />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-3 gap-6">
+            {products.map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
+          <Pagination
+            currentPage={currentPage}
+            totalPages={Math.ceil(totalProducts / productsPerPage)}
+            onPageChange={setCurrentPage}
+          />
+        </div>
+        <SortMenu onSort={(option) => setSortOption(option)} />
+      </main>
     </div>
   );
 }
