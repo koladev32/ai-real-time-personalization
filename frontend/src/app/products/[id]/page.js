@@ -6,6 +6,7 @@ import Image from "next/image";
 import { fetchFromAPI } from "@/utils/api";
 import { getSessionId } from "@/utils/session";
 import { use } from "react";
+import { trackEvent } from "@/utils/tracking";
 
 export default function ProductPage({ params }) {
   const [product, setProduct] = useState(null);
@@ -28,6 +29,21 @@ export default function ProductPage({ params }) {
     fetchProductDetails();
   }, [productId]);
 
+  useEffect(() => {
+    if(product) {
+      trackEvent("view_product", { product_id: product.id, category_id: product?.category_id });
+    }
+  }, [product]);
+
+  const handleAddToCart = () => {
+    trackEvent("add_to_cart", {
+      product_id: product.id,
+      price: product.price,
+      quantity: 1,
+      category_id: product?.category_id
+    });
+  };
+
   // Add product to cart
   const addToCart = () => {
     const sessionId = getSessionId();
@@ -49,6 +65,8 @@ export default function ProductPage({ params }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ session_id: sessionId, ...cartItem }),
     });
+
+    handleAddToCart();
   };
 
   if (!product) return <div>Loading...</div>;

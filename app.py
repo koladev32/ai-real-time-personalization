@@ -1,14 +1,16 @@
 import datetime
+import json
 
 from flask import Flask, request, jsonify
 import sqlite3
 from flask_cors import CORS
 
 from utils.collections import send_to_kafka
+from utils.redis_client import get_redis_connection
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "http://localhost:3001"}})
-
+redis_conn = get_redis_connection()
 
 # Utility function to execute queries
 def query_db(query, args=(), one=False):
@@ -50,16 +52,32 @@ def get_products():
     select_fields = request.args.get("select", "*")  # Fields to select
     category_id = request.args.get("category", None)
     search_query = request.args.get("search", None)  # Search keyword
+    session_id = request.args.get("session_id")  # Get session_id from request
 
-    # Validate order
-    if order not in ["asc", "desc"]:
-        return jsonify({"error": "Invalid order parameter. Use 'asc' or 'desc'."}), 400
+    # Fetch cached recommendations for the session
+    recommended_product_ids = redis_conn.get(f"user:{session_id}:recommendations")
+    recommended_products = []
 
-    # Base query
+    if recommended_product_ids:
+        # Convert to a list if stored as JSON string, or as needed
+        recommended_product_ids = json.loads(recommended_product_ids)
+
+        # Query the database for recommended products by IDs
+        placeholders = ', '.join(['?'] * len(recommended_product_ids))
+        recommendation_query = f"SELECT {select_fields} FROM products WHERE id IN ({placeholders})"
+        recommended_products = query_db(recommendation_query, tuple(recommended_product_ids))
+
+        # Convert each recommended product row to a dictionary
+        recommended_products = [{"recommended": True, **dict(row)} for row in recommended_products]
+        if category_id:
+            # Filter out recommended products that don't belong to the specified category
+            recommended_products = [product for product in recommended_products if product["category_id"] == category_id]
+
+    # Base product query with pagination, sorting, and other conditions
     base_query = f"SELECT {select_fields} FROM products"
     count_query = "SELECT COUNT(*) as count FROM products"
 
-    # Building conditions
+    # Build conditions
     conditions = []
     params = []
 
@@ -83,25 +101,30 @@ def get_products():
     base_query += f" ORDER BY {sort_by} {order.upper()} LIMIT ? OFFSET ?"
     params.extend([limit, skip])
 
-    # Execute the main query to fetch products
+    # Execute the main product query
     products = query_db(base_query, tuple(params))
 
     # Execute the count query to get the total count of products
-    total_count = query_db(count_query, tuple(params[: len(params) - 2]), one=True)[
-        "count"
-    ]
+    total_count = query_db(count_query, tuple(params[: len(params) - 2]), one=True)["count"]
 
+    # Convert each product row to a dictionary
+    products = [dict(row) for row in products]
+
+    # Combine recommended products with the regular products
+
+    all_products = recommended_products + products
+
+    # Convert rows to dictionaries and remove duplicates based on 'id'
+    unique_products = {row['id']: dict(row) for row in all_products}
+    all_products = [element for element in list(unique_products.values())]
     # Format the response
     response = {
-        "products": [dict(row) for row in products],
+        "products": all_products,
         "total": total_count,
         "skip": skip,
-        "limit": limit
-        if limit != 0
-        else total_count,  # If limit is 0, fetch all products
+        "limit": limit if limit != 0 else total_count  # If limit is 0, fetch all products
     }
     return jsonify(response)
-
 
 # Endpoint to search for products by title or description
 @app.route("/api/products/search", methods=["GET"])

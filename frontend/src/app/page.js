@@ -35,7 +35,7 @@ export default function Home() {
         if (searchTerm) params.search = searchTerm;
         if (selectedCategory) params.category = selectedCategory;
 
-        const data = await fetchFromAPI("/products", params);
+        const data = await fetchFromAPI("/products", { params });
         setProducts(data.products);
         setTotalProducts(data.total);
       } catch (error) {
@@ -44,7 +44,6 @@ export default function Home() {
     }
     fetchProducts();
   }, [searchTerm, sortOption, currentPage, selectedCategory]);
-
 
   return (
     <>

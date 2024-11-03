@@ -26,6 +26,8 @@ export async function fetchFromAPI(endpoint, options = {}) {
     }
   }
 
+  console.log("fetching", url.toString());
+
   // Set default method to GET if not provided
   const fetchOptions = {
     method: options.method || "GET",

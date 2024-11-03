@@ -2,9 +2,14 @@
 "use client";
 import { useEffect, useState } from "react";
 import { fetchFromAPI } from "../utils/api";
+import { trackEvent } from "@/utils/tracking";
 
 export default function Sidebar({ onCategorySelect }) {
   const [categories, setCategories] = useState([]);
+
+  const handleClick = (categoryId) => {
+    trackEvent("click_category", { category_id: categoryId });
+  };
 
   useEffect(() => {
     async function fetchCategories() {
@@ -26,7 +31,10 @@ export default function Sidebar({ onCategorySelect }) {
           <li
             key={category.id}
             className="mb-2 cursor-pointer hover:text-blue-400"
-            onClick={() => onCategorySelect(category.id)}
+            onClick={() => {
+              onCategorySelect(category.id);
+              handleClick(category.id);
+            }}
           >
             {category.name}
           </li>
