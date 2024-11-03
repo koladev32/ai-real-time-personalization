@@ -15,6 +15,16 @@ def query_db(query, args=(), one=False):
     conn.close()
     return (rv[0] if rv else None) if one else rv
 
+# Utility function to insert and retrieve last inserted ID
+def insert_and_get_id(query, args=()):
+    conn = sqlite3.connect('db/ecommerce.db')
+    cur = conn.cursor()
+    cur.execute(query, args)
+    conn.commit()
+    last_id = cur.lastrowid
+    conn.close()
+    return last_id
+
 # Endpoint to list all categories
 @app.route('/api/categories', methods=['GET'])
 def get_categories():
@@ -144,6 +154,75 @@ def get_product(product_id):
         return jsonify(dict(product))
     else:
         return jsonify({"error": "Product not found"}), 404
+
+################################################################################
+# Cart Endpoints
+################################################################################
+
+# Endpoint to retrieve the cart with items for a specific session
+@app.route('/api/cart', methods=['GET'])
+def get_cart():
+    session_id = request.args.get('session_id')
+    if not session_id:
+        return jsonify({"error": "Session ID is required"}), 400
+
+    # Retrieve the cart ID based on session_id
+    cart = query_db("SELECT * FROM cart WHERE session_id = ?", (session_id,), one=True)
+    if not cart:
+        return jsonify({"cart": [], "message": "Cart is empty"}), 200
+
+    cart_id = cart['id']
+
+    # Retrieve all items in the cart
+    cart_items = query_db("""
+        SELECT ci.product_id, ci.quantity, p.title, p.price, p.thumbnail
+        FROM cart_items ci
+        JOIN products p ON ci.product_id = p.id
+        WHERE ci.cart_id = ?
+    """, (cart_id,))
+
+    # Format response
+    response = {
+        "cart_id": cart_id,
+        "session_id": session_id,
+        "items": [dict(item) for item in cart_items]
+    }
+    return jsonify(response)
+
+# Endpoint to add items to the cart
+@app.route('/api/cart', methods=['POST'])
+def add_to_cart():
+    data = request.get_json()
+    session_id = data.get("session_id")
+    product_id = data.get("product_id")
+    quantity = data.get("quantity", 1)
+
+    if not session_id or not product_id:
+        return jsonify({"error": "Session ID and Product ID are required"}), 400
+
+    # Check if a cart exists for this session_id
+    cart = query_db("SELECT * FROM cart WHERE session_id = ?", (session_id,), one=True)
+    if not cart:
+        # Create a new cart for this session_id if it doesn't exist
+        cart_id = insert_and_get_id("INSERT INTO cart (session_id) VALUES (?)", (session_id,))
+    else:
+        cart_id = cart['id']
+
+    # Check if the product is already in the cart
+    existing_item = query_db("SELECT * FROM cart_items WHERE cart_id = ? AND product_id = ?", (cart_id, product_id), one=True)
+    if existing_item:
+        # Update quantity if the product is already in the cart
+        new_quantity = existing_item['quantity'] + quantity
+        conn = sqlite3.connect('db/ecommerce.db')
+        cur = conn.cursor()
+        cur.execute("UPDATE cart_items SET quantity = ? WHERE cart_id = ? AND product_id = ?", (new_quantity, cart_id, product_id))
+        conn.commit()
+        conn.close()
+    else:
+        # Add the new item to the cart
+        insert_and_get_id("INSERT INTO cart_items (cart_id, product_id, quantity) VALUES (?, ?, ?)", (cart_id, product_id, quantity))
+
+    return jsonify({"status": "success", "message": "Item added to cart"}), 201
 
 # Run the Flask app
 if __name__ == '__main__':

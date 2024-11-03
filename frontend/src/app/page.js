@@ -7,6 +7,9 @@ import SortMenu from "../components/SortMenu";
 import Pagination from "../components/Pagination";
 import Sidebar from "../components/Sidebar";
 import { fetchFromAPI } from "../utils/api";
+import Navbar from "../components/Navbar";
+import CartPanel from "../components/CartPanel";
+import useCart from "../hooks/useCart";
 
 export default function Home() {
   const [products, setProducts] = useState([]);
@@ -19,6 +22,7 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedCategory, setSelectedCategory] = useState("");
   const productsPerPage = 12;
+  const { cart, isCartOpen, setIsCartOpen } = useCart();
 
   useEffect(() => {
     async function fetchProducts() {
@@ -43,26 +47,33 @@ export default function Home() {
   }, [searchTerm, sortOption, currentPage, selectedCategory]);
 
   return (
-    <div className="flex">
-      <Sidebar onCategorySelect={setSelectedCategory} />
-      <main className="p-6 flex flex-row space-x-4">
-        <div className="w-10/12">
-          <div className="flex justify-between items-center mb-6 w-full">
-            <SearchBar onSearch={setSearchTerm} />
+    <>
+      <main className="flex-1 p-6">
+        <div className="flex flex-col">
+          <Navbar setSearchTerm={setSearchTerm} />
+          <div className="flex">
+            <Sidebar onCategorySelect={setSelectedCategory} />
+            <main className="px-6 flex flex-row space-x-4">
+              <div className="w-10/12">
+                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-3 gap-6">
+                  {products.map((product) => (
+                    <ProductCard key={product.id} product={product} />
+                  ))}
+                </div>
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={Math.ceil(totalProducts / productsPerPage)}
+                  onPageChange={setCurrentPage}
+                />
+              </div>
+              <SortMenu onSort={(option) => setSortOption(option)} />
+            </main>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-3 gap-6">
-            {products.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
-          <Pagination
-            currentPage={currentPage}
-            totalPages={Math.ceil(totalProducts / productsPerPage)}
-            onPageChange={setCurrentPage}
-          />
         </div>
-        <SortMenu onSort={(option) => setSortOption(option)} />
       </main>
-    </div>
+      {isCartOpen && (
+        <CartPanel cart={cart} onClose={() => setIsCartOpen(false)} />
+      )}
+    </>
   );
 }

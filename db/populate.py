@@ -43,6 +43,28 @@ CREATE TABLE IF NOT EXISTS products (
 )
 """)
 
+# Create the cart table
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS cart (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT UNIQUE NOT NULL,  -- UUID or session identifier for the user
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP  -- Timestamp for cart creation
+)
+""")
+
+# Create the cart_items table
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS cart_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cart_id INTEGER NOT NULL,           -- Foreign key to the cart
+    product_id INTEGER NOT NULL,         -- Foreign key to the product being added to the cart
+    quantity INTEGER DEFAULT 1,          -- Quantity of the product in the cart
+    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (cart_id) REFERENCES cart(id) ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+)
+""")
+
 # Load and insert categories from JSON
 with open('categories.json') as f:
     categories = json.load(f)
