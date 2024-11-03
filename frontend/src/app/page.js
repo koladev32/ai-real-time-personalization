@@ -2,7 +2,6 @@
 "use client";
 import { useState, useEffect } from "react";
 import ProductCard from "../components/ProductCard";
-import SearchBar from "../components/SearchBar";
 import SortMenu from "../components/SortMenu";
 import Pagination from "../components/Pagination";
 import Sidebar from "../components/Sidebar";
@@ -22,7 +21,7 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedCategory, setSelectedCategory] = useState("");
   const productsPerPage = 12;
-  const { cart, isCartOpen, setIsCartOpen } = useCart();
+  const { cart, isCartOpen, setIsCartOpen, cartCount } = useCart();
 
   useEffect(() => {
     async function fetchProducts() {
@@ -46,11 +45,17 @@ export default function Home() {
     fetchProducts();
   }, [searchTerm, sortOption, currentPage, selectedCategory]);
 
+
   return (
     <>
-      <main className="flex-1 p-6">
+      <main className={`flex-1 p-6 ${isCartOpen ? "opacity-25" : ""}`}>
         <div className="flex flex-col">
-          <Navbar setSearchTerm={setSearchTerm} />
+          <Navbar
+            setSearchTerm={setSearchTerm}
+            setIsCartOpen={setIsCartOpen}
+            cartCount={cartCount}
+            isCartOpen={isCartOpen}
+          />
           <div className="flex">
             <Sidebar onCategorySelect={setSelectedCategory} />
             <main className="px-6 flex flex-row space-x-4">

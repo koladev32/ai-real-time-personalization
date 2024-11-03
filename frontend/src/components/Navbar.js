@@ -6,10 +6,12 @@ import CartIcon from "./CartIcon";
 import SearchBar from "./SearchBar";
 import useCart from "@/hooks/useCart";
 
-export default function Navbar({ setSearchTerm }) {
-  const { cartCount, isCartOpen, setIsCartOpen } = useCart();
-
-
+export default function Navbar({
+  setSearchTerm,
+  cartCount,
+  isCartOpen,
+  setIsCartOpen,
+}) {
   return (
     <nav className="flex justify-between bg-gray-900 text-white">
       <h1 className="w-1/3 text-xl font-bold">RAD STORE</h1>

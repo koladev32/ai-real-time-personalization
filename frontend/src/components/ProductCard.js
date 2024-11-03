@@ -2,10 +2,17 @@
 "use client";
 
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 
 export default function ProductCard({ product }) {
+  const router = useRouter();
   return (
-    <div className="bg-gray-800 rounded-lg shadow-lg p-4">
+    <div
+      className="bg-gray-800 rounded-lg shadow-lg p-4 hover:border-blue-500 hover:border-2 hover:cursor-pointer"
+      onClick={() => {
+        router.push(`/products/${product.id}`);
+      }}
+    >
       <div className="w-full h-48 relative mb-4 rounded-lg overflow-hidden">
         <Image
           src={

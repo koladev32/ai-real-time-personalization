@@ -10,7 +10,6 @@ export default function useCart() {
 
   useEffect(() => {
     const loadCart = async () => {
-      const sessionId = getSessionId();
       const cartData = await fetchFromAPI(`/cart`);
       setCart(cartData.items || []);
       setCartCount(

@@ -3,16 +3,17 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { getSessionId } from "../../utils/session";
-import { fetchFromAPI } from "../../utils/api";
+import { fetchFromAPI } from "@/utils/api";
+import { getSessionId } from "@/utils/session";
+import { use } from "react";
 
 export default function ProductPage({ params }) {
   const [product, setProduct] = useState(null);
   const [relatedProducts, setRelatedProducts] = useState([]);
+  const productId = use(params).id;
 
   useEffect(() => {
     async function fetchProductDetails() {
-      const productId = params.id;
       const productData = await fetchFromAPI(`/products/${productId}`);
       setProduct(productData);
 
@@ -25,7 +26,7 @@ export default function ProductPage({ params }) {
       }
     }
     fetchProductDetails();
-  }, [params.id]);
+  }, [productId]);
 
   // Add product to cart
   const addToCart = () => {
