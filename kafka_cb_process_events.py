@@ -32,8 +32,6 @@ def process_events_with_cb():
         event_timestamp = datetime.strptime(
             event.get("timestamp").replace("Z", ""), "%Y-%m-%dT%H:%M:%S.%f"
         )
-        print(event)
-
         # Retrieve the last processed timestamp for this session
         last_processed_timestamp = get_last_processed_timestamp(session_id)
 
@@ -50,12 +48,12 @@ def process_events_with_cb():
         # Process only new events for recommendations
         recent_events = get_recent_interactions(session_id)
 
-        score_data, recommendations = RecommendationEngine().process_event_batch(recent_events)
+        score_data, recommendations = RecommendationEngine().process_event_batch(
+            recent_events
+        )
 
         # Cache the updated profile score in Redis
         cache_user_profile(session_id, score_data)
-
-        print(f"Processed new recommendations for session {session_id}.")
 
 
 if __name__ == "__main__":

@@ -4,6 +4,7 @@ from datetime import datetime
 
 from vowpalwabbit import pyvw
 
+
 class RecommendationEngine:
     def __init__(self, db_path="./db/ecommerce.db"):
         self.db_path = db_path
@@ -23,10 +24,44 @@ class RecommendationEngine:
         conn.close()
         return (result[0] if result else None) if one else result
 
-    # Event Processing
-    def process_event_batch(self, events):
+    def process_feedback(self, feedback_event, profile_data=None):
         """
-        Processes a batch of events to compute recommendation scores.
+        Incorporates feedback into the model by adjusting based on the feedback type.
+        Takes into account the user's current profile for enhanced personalization.
+        """
+
+        if not profile_data:
+            return
+
+        # Prepare context with additional profile data
+        context = self.get_context(feedback_event, profile_data)
+        actions = self.get_possible_actions(feedback_event, profile_data)
+        feedback_type = feedback_event["feedback"]
+
+        # Adjust reward based on profile data and feedback type
+        reward = 1.0 if feedback_type == "positive" else 0.0
+        if feedback_type == "positive" and profile_data:
+            reward += self.calculate_additional_reward(profile_data, feedback_event)
+
+        # Format feedback event for VW and learn
+        chosen_action = feedback_event["product_id"]
+        vw_example = self.format_vw_example(context, actions, chosen_action, reward)
+        self.vw.learn(vw_example)
+        print(
+            f"Feedback processed with profile data, model updated for session {feedback_event['session_id']}"
+        )
+
+    def calculate_additional_reward(self, profile_data, feedback_event):
+        """
+        Adjusts reward based on profile data and feedback to emphasize high-affinity items.
+        """
+        if feedback_event["product_id"] in profile_data.get("affinities", []):
+            return 0.2  # 20% reward for high-affinity items
+        return 0.0
+
+    def process_event_batch(self, events, profile_data=None):
+        """
+        Processes a batch of events and combines them with profile data to compute recommendations.
         """
         score_data = {}
         total_weight = 0
@@ -34,35 +69,50 @@ class RecommendationEngine:
         weight_decay = 0.9
 
         for event in reversed(events):
-            context = self.get_context(event)
-            actions = self.get_possible_actions(event)
+            context = self.get_context(event, profile_data)
+            actions = self.get_possible_actions(event, profile_data)
             reward = self.get_reward(event["event_type"])
 
-            for action, prob in zip(actions, self.vw.predict(self.format_vw_example(context, actions))):
-                score_data[action] = score_data.get(action, 0) + (reward * prob * weight)
+            for action, prob in zip(
+                actions, self.vw.predict(self.format_vw_example(context, actions))
+            ):
+                # Adjusting score using profile data if available
+                profile_score = profile_data.get(str(action), 0) if profile_data else 0
+                # Calculate final score with a balance between bandit probability and profile relevance
+                score_data[action] = (
+                    score_data.get(action, 0) + (reward * prob * weight) + profile_score
+                )
 
             total_weight += weight
             weight *= weight_decay
 
+        # Normalize scores to get a ranking
         score_data = {k: v / total_weight for k, v in score_data.items()}
         recommendations = sorted(score_data, key=score_data.get, reverse=True)
 
-        return score_data, recommendations[:10]
+        return score_data, recommendations[:10]  # Return top 10 recommendations
 
-    # Context and Action Retrieval
-    def get_context(self, event):
+    def get_context(self, event, profile_data=None):
         """
-        Extracts context features from the event.
+        Extracts context features from the event and includes profile data if available.
         """
-        return {
+        context = {
             "session_id": event["session_id"],
-            "time_of_day": datetime.strptime(event.get("timestamp").replace("Z", ""), "%Y-%m-%dT%H:%M:%S.%f").hour,
+            "time_of_day": datetime.strptime(
+                event.get("timestamp").replace("Z", ""), "%Y-%m-%dT%H:%M:%S.%f"
+            ).hour,
             "device": event.get("additional_context", {}).get("device_type", "unknown"),
         }
+        # Optionally add profile data as part of context if needed
+        if profile_data:
+            context["high_affinity_products"] = sorted(
+                profile_data, key=profile_data.get, reverse=True
+            )[:5]
+        return context
 
-    def get_possible_actions(self, event, limit=10):
+    def get_possible_actions(self, event, profile_data=None, limit=10):
         """
-        Fetches product IDs as possible actions, balancing recency and popularity.
+        Fetches product IDs as possible actions, balancing recency, popularity, and profile affinity.
         """
         category_id = self.get_event_category_id(event)
         category_products = self.query_db(
@@ -72,16 +122,27 @@ class RecommendationEngine:
             WHERE c.id = ?
             LIMIT ?
             """,
-            (category_id, int(limit / 2))
+            (category_id, int(limit / 2)),
         )
 
         popular_products = self.query_db(
             "SELECT id FROM products ORDER BY rating DESC LIMIT ?",
-            (limit - len(category_products),)
+            (limit - len(category_products),),
         )
 
-        all_products = [product["id"] for product in category_products] + \
-                       [product["id"] for product in popular_products]
+        # Filter or prioritize based on profile data if available
+        all_products = [product["id"] for product in category_products] + [
+            product["id"] for product in popular_products
+        ]
+
+        if profile_data:
+            # Sorting by profile relevance for actions
+            all_products = sorted(
+                all_products,
+                key=lambda pid: profile_data.get(str(pid), 0),
+                reverse=True,
+            )
+
         random.shuffle(all_products)
 
         return all_products[:limit]
@@ -90,8 +151,15 @@ class RecommendationEngine:
         """
         Determines the category ID based on event type.
         """
-        return event["category_id"] if event["event_type"] == "click_category" else \
-            self.query_db("SELECT category_id FROM products WHERE id = ?", (event["product_id"],), one=True)["category_id"]
+        return (
+            event["category_id"]
+            if event["event_type"] == "click_category"
+            else self.query_db(
+                "SELECT category_id FROM products WHERE id = ?",
+                (event["product_id"],),
+                one=True,
+            )["category_id"]
+        )
 
     # Vowpal Wabbit Integration
     def get_action(self, context, actions):
@@ -100,7 +168,9 @@ class RecommendationEngine:
         chosen_action_index, prob = self.sample_pmf(pmf)
         return actions[chosen_action_index], prob
 
-    def format_vw_example(self, context, actions, chosen_action=None, reward=None, prob=None):
+    def format_vw_example(
+        self, context, actions, chosen_action=None, reward=None, prob=None
+    ):
         """
         Formats the Vowpal Wabbit input example with context and actions.
         """
