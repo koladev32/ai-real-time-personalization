@@ -216,3 +216,6 @@ dist
 
 # db
 *.db
+
+# csv files in db
+db/*.csv

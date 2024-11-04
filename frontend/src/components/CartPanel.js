@@ -8,7 +8,7 @@ export default function CartPanel({ cart, onClose }) {
     .toFixed(2);
 
   return (
-    <div className="fixed right-0 top-0 w-1/3 h-full bg-gray-900 text-white p-6 shadow-lg overflow-y-auto transition duration-300 ease-in-out">
+    <div className="fixed right-0 top-0 w-1/3 h-full bg-white text-gray-900 p-6 shadow-lg overflow-y-auto transition duration-300 ease-in-out">
       <button onClick={onClose} className="absolute top-4 right-4 text-white">
         X
       </button>
@@ -38,7 +38,7 @@ export default function CartPanel({ cart, onClose }) {
         <p>Total</p>
         <p>${total} USD</p>
       </div>
-      <button className="mt-6 bg-blue-600 w-full py-2 rounded text-white font-bold">
+      <button className="mt-6 bg-blue-600 w-full py-2 rounded text-gray-900 font-bold">
         Proceed to Checkout
       </button>
     </div>

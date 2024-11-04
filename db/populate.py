@@ -1,47 +1,36 @@
+import csv
 import sqlite3
-import json
-from datetime import datetime
 
 # Connect to SQLite database (or create it if it doesn't exist)
 conn = sqlite3.connect("ecommerce.db")
 cursor = conn.cursor()
 
-# Create the categories table
+# Create the categories table with a popularity field
 cursor.execute(
     """
 CREATE TABLE IF NOT EXISTS categories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE,
-    slug TEXT NOT NULL UNIQUE
+    category_name TEXT NOT NULL UNIQUE,
+    popularity REAL DEFAULT 0
 )
 """
 )
 
-# Create the products table
+# Create the products table matching the CSV structure
 cursor.execute(
     """
 CREATE TABLE IF NOT EXISTS products (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    asin TEXT UNIQUE NOT NULL,
     title TEXT NOT NULL,
-    description TEXT,
+    imgUrl TEXT,
+    productURL TEXT,
+    stars REAL,
+    reviews INTEGER,
+    price REAL,
+    listPrice REAL,
     category_id INTEGER,
-    price REAL NOT NULL,
-    discountPercentage REAL,
-    rating REAL,
-    stock INTEGER,
-    brand TEXT,
-    sku TEXT,
-    weight REAL,
-    dimensions TEXT,
-    warrantyInformation TEXT,
-    shippingInformation TEXT,
-    availabilityStatus TEXT,
-    returnPolicy TEXT,
-    minimumOrderQuantity INTEGER,
-    created_at TIMESTAMP,
-    updated_at TIMESTAMP,
-    barcode TEXT,
-    thumbnail TEXT,
+    isBestSeller BOOLEAN,
     FOREIGN KEY (category_id) REFERENCES categories(id)
 )
 """
@@ -73,108 +62,102 @@ CREATE TABLE IF NOT EXISTS cart_items (
 """
 )
 
-# Load and insert categories from JSON
-with open("categories.json") as f:
-    categories = json.load(f)
+# Create the orders table to log purchases
+cursor.execute(
+    """
+CREATE TABLE IF NOT EXISTS orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cart_id INTEGER NOT NULL,
+    user_id TEXT NOT NULL,  -- UUID or identifier for the user
+    total_amount REAL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (cart_id) REFERENCES cart(id) ON DELETE CASCADE
+)
+"""
+)
 
-for category in categories:
-    slug = category.get("slug")
-    name = category.get("name")
-    cursor.execute(
-        "INSERT OR IGNORE INTO categories (name, slug) VALUES (?, ?)", (name, slug)
-    )
+# Load and insert categories from amazon_categories.csv
+with open("amazon_categories.csv", newline="") as csvfile:
+    reader = csv.DictReader(csvfile)
+    for row in reader:
+        category_name = row["category_name"]
+        category_id = row["id"]
+        cursor.execute(
+            "INSERT OR IGNORE INTO categories (id, category_name) VALUES (?, ?)",
+            (category_id, category_name),
+        )
 
-# Commit the categories to get their IDs
+# Commit categories to retrieve their IDs
 conn.commit()
 
-# Map category slugs to IDs for easy lookup
-cursor.execute("SELECT id, slug FROM categories")
-category_map = {slug: category_id for category_id, slug in cursor.fetchall()}
+# Map category names to IDs for easy lookup
+cursor.execute("SELECT id, category_name FROM categories")
+category_map = {name: category_id for category_id, name in cursor.fetchall()}
 
-# Load and insert products from JSON
-with open("products.json") as f:
-    products_data = json.load(f)
+# Load and insert products from amazon_products.csv
+with open("amazon_products.csv", newline="") as csvfile:
+    reader = csv.DictReader(csvfile)
+    for row in reader:
+        asin = row["asin"]
+        title = row["title"]
+        imgUrl = row["imgUrl"]
+        productURL = row["productURL"]
+        stars = float(row["stars"]) if row["stars"] else 0
+        reviews = int(row["reviews"]) if row["reviews"] else 0
+        price = float(row["price"]) if row["price"] else 0
+        listPrice = float(row["listPrice"]) if row["listPrice"] else 0
+        category_id = row["category_id"]
+        isBestSeller = row["isBestSeller"].lower() == "true"
 
-for product in products_data["products"]:
-    # Extract product fields
-    title = product.get("title")
-    description = product.get("description")
-    price = product.get("price")
-    discountPercentage = product.get("discountPercentage")
-    rating = product.get("rating")
-    stock = product.get("stock")
-    brand = product.get("brand")
-    sku = product.get("sku")
-    weight = product.get("weight")
+        # Insert product into the database
+        cursor.execute(
+            """
+            INSERT INTO products (
+                asin, title, imgUrl, productURL, stars, reviews, price,
+                listPrice, category_id, isBestSeller
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                asin,
+                title,
+                imgUrl,
+                productURL,
+                stars,
+                reviews,
+                price,
+                listPrice,
+                category_id,
+                isBestSeller,
+            ),
+        )
 
-    # Dimensions as a single string
-    dimensions = product.get("dimensions", {})
-    dimensions_str = f"{dimensions.get('width', 0)}x{dimensions.get('height', 0)}x{dimensions.get('depth', 0)}"
+# Commit all product inserts
+conn.commit()
 
-    warrantyInformation = product.get("warrantyInformation")
-    shippingInformation = product.get("shippingInformation")
-    availabilityStatus = product.get("availabilityStatus")
-    returnPolicy = product.get("returnPolicy")
-    minimumOrderQuantity = product.get("minimumOrderQuantity")
-
-    # Timestamps
-    created_at = product.get("meta", {}).get("createdAt")
-    updated_at = product.get("meta", {}).get("updatedAt")
-    created_at = (
-        datetime.fromisoformat(created_at.replace("Z", "+00:00"))
-        if created_at
-        else None
-    )
-    updated_at = (
-        datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
-        if updated_at
-        else None
-    )
-
-    # Barcode and thumbnail
-    barcode = product.get("meta", {}).get("barcode")
-    thumbnail = product.get("thumbnail")
-
-    # Get the category ID from the category slug
-    category_slug = product.get("category")
-    category_id = category_map.get(category_slug)
-
-    # Insert product into the database
+# Calculate and update popularity scores for each category based on the average rating
+for category_id in category_map.values():
+    # Calculate the average stars for rated products in each category
     cursor.execute(
         """
-    INSERT INTO products (
-        title, description, category_id, price, discountPercentage, rating,
-        stock, brand, sku, weight, dimensions, warrantyInformation,
-        shippingInformation, availabilityStatus, returnPolicy,
-        minimumOrderQuantity, created_at, updated_at, barcode, thumbnail
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """,
-        (
-            title,
-            description,
-            category_id,
-            price,
-            discountPercentage,
-            rating,
-            stock,
-            brand,
-            sku,
-            weight,
-            dimensions_str,
-            warrantyInformation,
-            shippingInformation,
-            availabilityStatus,
-            returnPolicy,
-            minimumOrderQuantity,
-            created_at,
-            updated_at,
-            barcode,
-            thumbnail,
-        ),
+        SELECT AVG(stars) as popularity
+        FROM products
+        WHERE category_id = ? AND stars > 0
+        """,
+        (category_id,),
+    )
+    result = cursor.fetchone()
+    popularity = result[0] if result[0] is not None else 0
+
+    # Update the popularity score in the categories table
+    cursor.execute(
+        "UPDATE categories SET popularity = ? WHERE id = ?",
+        (popularity, category_id),
     )
 
 # Commit all changes and close the connection
 conn.commit()
 conn.close()
 
-print("Database setup complete with categories and products imported successfully.")
+print(
+    "Database setup complete with categories, products, and popularity scores imported successfully."
+)

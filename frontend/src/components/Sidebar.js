@@ -24,7 +24,7 @@ export default function Sidebar({ onCategorySelect }) {
   }, []);
 
   return (
-    <aside className="w-64 bg-gray-800 p-4">
+    <aside className="w-64 bg-white text-gray-900 p-4">
       <h2 className="text-xl font-bold mb-4">Collections</h2>
       <ul>
         {categories.map((category) => (
@@ -36,7 +36,7 @@ export default function Sidebar({ onCategorySelect }) {
               handleClick(category.id);
             }}
           >
-            {category.name}
+            {category.category_name}
           </li>
         ))}
       </ul>

@@ -13,7 +13,7 @@ export default function Navbar({
   setIsCartOpen,
 }) {
   return (
-    <nav className="flex justify-between bg-gray-900 text-white">
+    <nav className="flex justify-between bg-white text-gray-900">
       <h1 className="w-1/3 text-xl font-bold">RAD STORE</h1>
       <div className="flex justify-between items-center mb-6 w-3/4">
         <SearchBar onSearch={setSearchTerm} />

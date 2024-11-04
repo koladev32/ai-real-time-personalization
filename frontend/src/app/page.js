@@ -11,6 +11,7 @@ import CartPanel from "../components/CartPanel";
 import useCart from "../hooks/useCart";
 
 export default function Home() {
+  
   const [products, setProducts] = useState([]);
   const [totalProducts, setTotalProducts] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");

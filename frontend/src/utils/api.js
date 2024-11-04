@@ -25,9 +25,6 @@ export async function fetchFromAPI(endpoint, options = {}) {
       url.searchParams.append("session_id", sessionId);
     }
   }
-
-  console.log("fetching", url.toString());
-
   // Set default method to GET if not provided
   const fetchOptions = {
     method: options.method || "GET",
