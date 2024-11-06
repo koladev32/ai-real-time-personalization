@@ -20,7 +20,10 @@ export default function ProductPage({ params }) {
 
       // Track the product view event once data is fetched
       if (productData) {
-        trackEvent("view_product", { product_id: productData.id, category_id: productData.category_id });
+        trackEvent("view_product", {
+          product_id: productData.id,
+          category_id: productData.category_id,
+        });
       }
 
       // Fetch related products from the same category
@@ -39,7 +42,7 @@ export default function ProductPage({ params }) {
       product_id: product.id,
       price: product.price,
       quantity: 1,
-      category_id: product.category_id
+      category_id: product.category_id,
     });
   };
 

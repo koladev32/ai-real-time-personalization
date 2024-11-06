@@ -1,5 +1,5 @@
 // contexts/UserProfileContext.js
-"use client"
+"use client";
 import { createContext, useState, useEffect, useContext } from "react";
 import { fetchFromAPI } from "../utils/api";
 

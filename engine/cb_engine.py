@@ -126,7 +126,7 @@ class RecommendationEngine:
         )
 
         popular_products = self.query_db(
-            "SELECT id FROM products ORDER BY rating DESC LIMIT ?",
+            "SELECT id FROM products ORDER BY stars DESC LIMIT ?",
             (limit - len(category_products),),
         )
 

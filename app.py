@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime
 import sqlite3
 
 from flask import Flask, request, jsonify
@@ -76,6 +76,7 @@ def get_product_query_params(request):
     select_fields = request.args.get("select", "*")
     category_id = request.args.get("category", None)
     search_query = request.args.get("search", None)
+    ids = request.args.get("ids", None)
 
     base_query = f"SELECT {select_fields} FROM products"
     count_query = "SELECT COUNT(*) as count FROM products"
@@ -87,6 +88,11 @@ def get_product_query_params(request):
     if category_id:
         conditions.append("category_id = ?")
         args.append(category_id)
+    if ids:
+        ids_list = ids.split(",")
+        placeholders = ", ".join(["?"] * len(ids_list))  # Create a placeholder for each id
+        conditions.append(f"id IN ({placeholders})")
+        args.extend(ids_list)  # Add each id as a separate argument
 
     where_clause = " WHERE " + " AND ".join(conditions) if conditions else ""
     query = f"{base_query}{where_clause} ORDER BY {sort_by} {order.upper()} LIMIT ? OFFSET ?"
@@ -178,7 +184,7 @@ def get_cart():
     cart, cart_id = get_or_create_cart(session_id)
     cart_items = query_db(
         """
-        SELECT ci.product_id, ci.quantity, p.title, p.price, p.imageURL
+        SELECT ci.product_id, ci.quantity, p.title, p.price, p.imgUrl
         FROM cart_items ci
         JOIN products p ON ci.product_id = p.id
         WHERE ci.cart_id = ?
@@ -257,7 +263,7 @@ def track_event():
         return jsonify({"error": "Invalid event type"}), 400
 
     data["timestamp"] = data.get(
-        "timestamp", datetime.datetime.now(datetime.UTC).isoformat()
+        "timestamp", datetime.utcnow().isoformat()
     )
     send_to_kafka("user_interactions", data)
 
@@ -298,9 +304,12 @@ def get_top_categories_with_top_products():
                     "id": product["id"],
                     "title": product["title"],
                     "imgUrl": product["imgUrl"],
+                    "price": product["price"],
+                    "stars": product["stars"],
+
                 }
                 for product in query_db(
-                    "SELECT id, title, imgUrl FROM products WHERE category_id = ? ORDER BY stars DESC LIMIT 5",
+                    "SELECT id, title, imgUrl, price, stars FROM products WHERE category_id = ? ORDER BY stars DESC LIMIT 5",
                     (category["id"],),
                 )
             ],

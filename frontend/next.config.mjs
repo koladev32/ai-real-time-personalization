@@ -18,7 +18,7 @@ const nextConfig = {
       {
         protocol: "https",
         hostname: "m.media-amazon.com",
-      }
+      },
     ],
   },
 };

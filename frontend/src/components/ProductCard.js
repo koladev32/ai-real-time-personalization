@@ -4,13 +4,14 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 
-export default function ProductCard({ product }) {
+export default function ProductCard({ product, categoryView }) {
   const router = useRouter();
 
   // Truncate title to the first three words if it's longer than three words
-  const truncatedTitle = product.title.split(" ").length > 3
-    ? product.title.split(" ").slice(0, 3).join(" ") + "..."
-    : product.title;
+  const truncatedTitle =
+    product.title.split(" ").length > 3
+      ? product.title.split(" ").slice(0, 3).join(" ") + "..."
+      : product.title;
 
   return (
     <div
@@ -19,7 +20,11 @@ export default function ProductCard({ product }) {
         router.push(`/products/${product.id}`);
       }}
     >
-      <div className="w-full h-48 relative mb-4 rounded-lg overflow-hidden">
+      <div
+        className={`w-full ${
+          categoryView ? "h-24" : "h-48"
+        } relative mb-4 rounded-lg overflow-hidden`}
+      >
         <Image
           src={
             product.imgUrl ||
@@ -33,9 +38,10 @@ export default function ProductCard({ product }) {
           objectFit="cover"
         />
       </div>
-      <h3 className="text-lg font-semibold">{truncatedTitle}</h3>
-      <p className="text-blue-400 text-xl">${product.price}</p>
-      <p className="text-gray-400 mt-1">Rating: {product.stars}</p>
+      <h3 className="font-semibold">{truncatedTitle}</h3>
+
+          <p className="text-blue-400 text-xl">${product.price}</p>
+          <p className="text-gray-400 mt-1">Rating: {product.stars}</p>
     </div>
   );
 }
